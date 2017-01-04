@@ -2,27 +2,23 @@ package main // main.go project main.go
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"net/http"
 
 	"github.com/Questlog/LogSocket/server"
-
-	"github.com/fsnotify/fsnotify"
 )
 
 func main() {
-	fmt.Println("Hello World!!!")
-
-	//someOption := flag.String("name", "defaultValue", "Description")
-	//fmt.Println(*someOption)
+	bindPath := flag.String("bindPath", "/logSocket", "Url to bind to")
+	bindPort := flag.String("bindPort", ":8080", "Port to bind to")
 
 	flag.Parse()
 
-	fw := NewFileWatcher(flag.Args()[0:])
-	defer fw.close()
+	fw := NewFileWatcher()
+	defer fw.Close()
+	fw.WatchFiles(flag.Args())
 
-	ws := server.NewServer("/fail2orgel")
+	ws := server.NewServer(*bindPath)
 	go ws.Listen()
 
 	go func() {
@@ -34,52 +30,6 @@ func main() {
 		}
 	}()
 
-	http.Handle("/", http.FileServer(http.Dir("webroot")))
-	log.Fatal(http.ListenAndServe(":8080", nil))
-}
-
-type Filewatcher struct {
-	paths   []string
-	watcher *fsnotify.Watcher
-	eventCh chan *fsnotify.Event
-}
-
-func NewFileWatcher(paths []string) *Filewatcher {
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	eventCh := make(chan *fsnotify.Event)
-
-	go func() {
-		for {
-			select {
-			case event := <-watcher.Events:
-				log.Println("event:", event)
-				if event.Op&fsnotify.Write == fsnotify.Write {
-					log.Println("modified file:", event.Name)
-					eventCh <- &event
-				}
-			case err := <-watcher.Errors:
-				log.Println("error:", err)
-			}
-		}
-	}()
-
-	for _, path := range paths {
-		fmt.Println("Watching:", path)
-		err = watcher.Add(path)
-
-		if err != nil {
-			log.Println(path)
-			log.Fatal(err)
-		}
-	}
-
-	return &Filewatcher{paths, watcher, eventCh}
-}
-
-func (fw *Filewatcher) close() {
-	fw.watcher.Close()
+	//http.Handle("/", http.FileServer(http.Dir("webroot")))
+	log.Fatal(http.ListenAndServe(*bindPort, nil))
 }
